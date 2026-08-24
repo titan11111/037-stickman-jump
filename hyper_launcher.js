@@ -396,7 +396,7 @@
     timingRing.rotation.x = Math.PI / 2;
     timingRing.position.y = 0.7;
     stickmanGroup.add(timingRing);
-    stickmanGroup.scale.setScalar(1.52);
+    stickmanGroup.scale.setScalar(1.62);
     stickmanGroup.renderOrder = 8;
     stickmanGroup.traverse((obj) => {
       obj.frustumCulled = false;
@@ -659,12 +659,12 @@
     }
   }
 
-  const CAM_BACK = 8.6;
-  const CAM_UP = 3.15;
-  const CAM_SIDE = 11.4;
-  const CAM_MAX_LAG_X = 1.35;
-  const CAM_MAX_LAG_Y = 1.8;
-  const CAM_MAX_LAG_Z = 1.25;
+  const CAM_BACK = 14.2;
+  const CAM_UP = 5.4;
+  const CAM_SIDE = 17.6;
+  const CAM_MAX_LAG_X = 1.5;
+  const CAM_MAX_LAG_Y = 2.0;
+  const CAM_MAX_LAG_Z = 1.4;
 
   function clampLag(current, target, maxLag) {
     const d = current - target;
@@ -679,14 +679,14 @@
 
   function frameCamera(dt) {
     const rush = reducedMotion ? 0 : rushAmount();
-    const targetX = pos.x - (CAM_BACK + rush * 3.4);
-    const targetY = Math.max(pos.y + CAM_UP + rush * 1.5, 3.4);
-    const targetZ = pos.z + CAM_SIDE + rush * 2.8;
-    const lookAhead = 5.2 + rush * 9.5;
+    const targetX = pos.x - (CAM_BACK + rush * 4.2);
+    const targetY = Math.max(pos.y + CAM_UP + rush * 2.0, 4.2);
+    const targetZ = pos.z + CAM_SIDE + rush * 3.6;
+    const lookAhead = 14 + rush * 18;
     const wantLookX = pos.x + lookAhead;
-    const wantLookY = pos.y + 0.55;
+    const wantLookY = pos.y + 0.4;
     const wantLookZ = pos.z;
-    const fov = 54 + rush * 8;
+    const fov = 56 + rush * 6;
     camera.fov = fov;
     if (Math.abs(fov - lastCamFov) > 0.08) {
       camera.updateProjectionMatrix();
@@ -789,17 +789,35 @@
     }
   }
 
-  function nextObstacles(n) {
+  function nextThreats(n) {
     const ahead = [];
     for (let i = 0; i < obstacles.length; i++) {
-      if (obstacles[i].x > pos.x + 2) ahead.push(obstacles[i]);
-      if (ahead.length >= n) break;
+      if (obstacles[i].x > pos.x + 2) {
+        ahead.push({
+          x: obstacles[i].x,
+          y: obstacles[i].y,
+          z: obstacles[i].z,
+          radius: obstacles[i].radius
+        });
+      }
     }
-    return ahead;
+    for (let i = 0; i < spaceRocks.length; i++) {
+      const r = spaceRocks[i];
+      if (r.mesh.position.x > pos.x + 2) {
+        ahead.push({
+          x: r.mesh.position.x,
+          y: r.mesh.position.y,
+          z: r.mesh.position.z,
+          radius: r.radius
+        });
+      }
+    }
+    ahead.sort((a, b) => a.x - b.x);
+    return ahead.slice(0, n);
   }
 
   function updateTelegraphs() {
-    const next = nextObstacles(2);
+    const next = nextThreats(2);
     telegraphs.forEach((ring, i) => {
       const obs = next[i];
       if (!obs) {
@@ -809,10 +827,10 @@
       ring.visible = true;
       ring.position.set(obs.x, obs.y, obs.z);
       const pulse = 1 + Math.sin(performance.now() / 180 + i) * 0.08;
-      ring.scale.setScalar(pulse * Math.max(1, obs.radius / 1.5));
+      ring.scale.setScalar(pulse * Math.max(1.35, obs.radius / 1.35));
       const dist = obs.x - pos.x;
-      ring.material.opacity = dist < 18 ? 1 : 0.72;
-      ring.material.color.set(dist < 18 ? 0xfacc15 : 0xf43f5e);
+      ring.material.opacity = dist < 42 ? 1 : 0.78;
+      ring.material.color.set(dist < 42 ? 0xfacc15 : 0xf43f5e);
     });
   }
 
@@ -1037,33 +1055,35 @@
   }
 
   function spawnSpaceRock() {
-    const size = 0.7 + Math.random() * 1.45;
+    const size = 1.05 + Math.random() * 1.55;
     const mesh = new THREE.Mesh(
       new THREE.IcosahedronGeometry(size, 0),
       new THREE.MeshStandardMaterial({
-        color: 0xc4b4a4,
-        roughness: 0.88,
-        metalness: 0.12,
+        color: 0xd7c4b2,
+        roughness: 0.82,
+        metalness: 0.16,
         flatShading: true,
-        emissive: 0x5b463c,
-        emissiveIntensity: 0.38
+        emissive: 0xff7a59,
+        emissiveIntensity: 0.55
       })
     );
+    const ahead = 88 + Math.random() * 72;
     mesh.position.set(
-      pos.x + 22 + Math.random() * 36,
-      pos.y + (Math.random() - 0.4) * 12,
-      pos.z + (Math.random() - 0.5) * 8
+      pos.x + ahead,
+      pos.y + (Math.random() - 0.45) * 7,
+      pos.z + (Math.random() - 0.5) * 11
     );
     addOutline(mesh);
     scene.add(mesh);
+    const close = 9 + Math.random() * 8;
     spaceRocks.push({
       mesh,
-      vx: vel.x - (16 + Math.random() * 20),
-      vy: (Math.random() - 0.5) * 4.5,
-      vz: (Math.random() - 0.5) * 6,
-      radius: size * 1.12,
-      rotX: (Math.random() - 0.5) * 0.1,
-      rotY: (Math.random() - 0.5) * 0.1
+      vx: vel.x - close,
+      vy: (Math.random() - 0.5) * 2.4,
+      vz: (Math.random() - 0.5) * 3.2,
+      radius: size * 1.08,
+      rotX: (Math.random() - 0.5) * 0.08,
+      rotY: (Math.random() - 0.5) * 0.08
     });
   }
 
@@ -1096,8 +1116,8 @@
 
     if (inSpace) {
       const layer = resolveLayer();
-      const cap = layer.id === 'orbit' ? 16 : 11;
-      const gap = layer.id === 'orbit' ? 0.28 : 0.48;
+      const cap = layer.id === 'orbit' ? 10 : 7;
+      const gap = layer.id === 'orbit' ? 0.55 : 0.85;
       spaceRockT -= dt;
       if (spaceRockT <= 0 && spaceRocks.length < cap) {
         spawnSpaceRock();
@@ -1117,11 +1137,12 @@
         pos.y - r.mesh.position.y,
         pos.z - r.mesh.position.z
       );
+      r.mesh.material.emissiveIntensity = dist < 48 ? 1.15 : 0.55;
       if (gameState === 'PLAYING' && dist < r.radius + 0.75) {
         gameOver('OBSTACLE');
         break;
       }
-      if (r.mesh.position.x < pos.x - 16 || Math.abs(r.mesh.position.y - pos.y) > 36) {
+      if (r.mesh.position.x < pos.x - 22 || Math.abs(r.mesh.position.y - pos.y) > 42) {
         scene.remove(r.mesh);
         spaceRocks.splice(i, 1);
       }
@@ -1351,16 +1372,17 @@
     radarCtx.lineTo(w - 8, h / 2);
     radarCtx.stroke();
 
-    const next = nextObstacles(8);
+    const next = nextThreats(8);
+    const span = inSpace ? 160 : 48;
     next.forEach((obs) => {
       const dx = obs.x - pos.x;
       const dz = obs.z - pos.z;
-      const px = 22 + dx * 1.15;
-      const py = h / 2 + dz * 4.2;
+      const px = 22 + (dx / span) * (w - 36);
+      const py = h / 2 + dz * (inSpace ? 2.6 : 4.2);
       if (px < 8 || px > w - 6) return;
-      radarCtx.fillStyle = dx < 20 ? '#facc15' : '#fb7185';
+      radarCtx.fillStyle = dx < 36 ? '#facc15' : '#fb7185';
       radarCtx.beginPath();
-      radarCtx.arc(px, py, dx < 20 ? 4.2 : 3.2, 0, Math.PI * 2);
+      radarCtx.arc(px, py, dx < 36 ? 4.2 : 3.2, 0, Math.PI * 2);
       radarCtx.fill();
     });
 
