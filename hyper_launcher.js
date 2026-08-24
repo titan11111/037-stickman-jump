@@ -5,6 +5,9 @@
   const CHARGE_FULL_MS = 560;
   const Z_LIMIT = 7.5;
   const FLOW_BASE = 17.2;
+  const LAYER_TROPO_END = 12000;
+  const LAYER_STRATO_END = 50000;
+  const LAYER_ORBIT_START = 100000;
   const MILESTONES = [
     { m: 25, name: '25mプール' },
     { m: 122, name: '東京ドーム' },
@@ -219,6 +222,9 @@
   let wakeLock = null;
   let radarCtx = null;
   let radarDpr = 1;
+  let camLook = { x: 0, y: 3, z: 0 };
+  let speedLineT = 0;
+  let lastCamFov = 56;
 
   const charge = {
     active: false,
@@ -390,7 +396,7 @@
     timingRing.rotation.x = Math.PI / 2;
     timingRing.position.y = 0.7;
     stickmanGroup.add(timingRing);
-    stickmanGroup.scale.setScalar(1.38);
+    stickmanGroup.scale.setScalar(1.52);
     stickmanGroup.renderOrder = 8;
     stickmanGroup.traverse((obj) => {
       obj.frustumCulled = false;
@@ -653,23 +659,66 @@
     }
   }
 
-  const CAM_BACK = 4.4;
-  const CAM_UP = 1.7;
-  const CAM_SIDE = 5.8;
+  const CAM_BACK = 8.6;
+  const CAM_UP = 3.15;
+  const CAM_SIDE = 11.4;
+  const CAM_MAX_LAG_X = 1.35;
+  const CAM_MAX_LAG_Y = 1.8;
+  const CAM_MAX_LAG_Z = 1.25;
+
+  function clampLag(current, target, maxLag) {
+    const d = current - target;
+    if (d > maxLag) return target + maxLag;
+    if (d < -maxLag) return target - maxLag;
+    return current;
+  }
+
+  function rushAmount() {
+    return Math.min(1, Math.max(0, (vel.x / FLOW_BASE - 1) / 5.2));
+  }
 
   function frameCamera(dt) {
-    camera.fov = 56;
-    camera.position.set(
-      pos.x - CAM_BACK,
-      Math.max(pos.y + CAM_UP, 3.0),
-      pos.z + CAM_SIDE
-    );
-    if (dt && cameraShake > 0 && !reducedMotion) {
+    const rush = reducedMotion ? 0 : rushAmount();
+    const targetX = pos.x - (CAM_BACK + rush * 3.4);
+    const targetY = Math.max(pos.y + CAM_UP + rush * 1.5, 3.4);
+    const targetZ = pos.z + CAM_SIDE + rush * 2.8;
+    const lookAhead = 5.2 + rush * 9.5;
+    const wantLookX = pos.x + lookAhead;
+    const wantLookY = pos.y + 0.55;
+    const wantLookZ = pos.z;
+    const fov = 54 + rush * 8;
+    camera.fov = fov;
+    if (Math.abs(fov - lastCamFov) > 0.08) {
+      camera.updateProjectionMatrix();
+      lastCamFov = fov;
+    }
+
+    if (!dt) {
+      camera.position.set(targetX, targetY, targetZ);
+      camLook = { x: wantLookX, y: wantLookY, z: wantLookZ };
+      camera.lookAt(camLook.x, camLook.y, camLook.z);
+      return;
+    }
+
+    const follow = 1 - Math.exp(-8.4 * dt);
+    const lookFollow = 1 - Math.exp(-6.4 * dt);
+    camera.position.x += (targetX - camera.position.x) * follow;
+    camera.position.y += (targetY - camera.position.y) * follow;
+    camera.position.z += (targetZ - camera.position.z) * follow;
+    camera.position.x = clampLag(camera.position.x, targetX, CAM_MAX_LAG_X);
+    camera.position.y = clampLag(camera.position.y, targetY, CAM_MAX_LAG_Y);
+    camera.position.z = clampLag(camera.position.z, targetZ, CAM_MAX_LAG_Z);
+
+    camLook.x += (wantLookX - camLook.x) * lookFollow;
+    camLook.y += (wantLookY - camLook.y) * lookFollow;
+    camLook.z += (wantLookZ - camLook.z) * lookFollow;
+
+    if (cameraShake > 0 && !reducedMotion) {
       camera.position.x += (Math.random() - 0.5) * cameraShake;
       camera.position.y += (Math.random() - 0.5) * cameraShake;
       cameraShake = Math.max(0, cameraShake - dt * 3);
     }
-    camera.lookAt(pos.x + 1.4, pos.y + 0.75, pos.z);
+    camera.lookAt(camLook.x, camLook.y, camLook.z);
   }
 
   function resetCamera() {
@@ -778,18 +827,10 @@
     return 'good';
   }
 
-  function flowSpeed() {
-    return FLOW_BASE + Math.log2(Math.max(1, speedMultiplier)) * 10.2;
-  }
-
-  function applyFlowVelocity() {
-    vel.x = flowSpeed();
-  }
-
   function resolveLayer() {
-    if (pos.x >= 400 || pos.y > 14.5) return { id: 'orbit', label: '軌道' };
-    if (inSpace || pos.x >= 80 || pos.y > 10) return { id: 'space', label: '宇宙' };
-    if (pos.y > 7 || pos.x >= 40) return { id: 'strato', label: '成層圏' };
+    if (pos.x >= LAYER_ORBIT_START) return { id: 'orbit', label: '軌道' };
+    if (pos.x >= LAYER_STRATO_END) return { id: 'space', label: '宇宙' };
+    if (pos.x >= LAYER_TROPO_END) return { id: 'strato', label: '成層圏' };
     return { id: 'tropo', label: '対流圏' };
   }
 
@@ -829,7 +870,6 @@
     digsLeft = 0;
     pos.y = 1.4;
     vel.y = 16.8;
-    applyFlowVelocity();
     combo = 0;
     apexCueSent = false;
     showJudge('dig');
@@ -941,30 +981,50 @@
   }
 
   function createSpeedLines() {
+    spawnSpeedStreaks(true);
+  }
+
+  function spawnSpeedStreaks(burst) {
+    if (reducedMotion) return;
     const wrap = $('speed-lines-container');
-    wrap.replaceChildren();
-    const n = Math.min(6 + Math.floor(speedMultiplier * 4), 18);
+    if (!wrap) return;
+    const rush = rushAmount();
+    const n = burst
+      ? Math.min(8 + Math.floor(rush * 10), 16)
+      : 1 + Math.floor(rush * 3);
     for (let i = 0; i < n; i++) {
       const line = document.createElement('div');
       line.className = 'speed-line';
-      line.style.top = `${8 + Math.random() * 84}%`;
-      line.style.left = `${Math.random() * 40}%`;
-      line.style.width = `${90 + Math.random() * 220}px`;
-      line.style.opacity = `${0.25 + Math.random() * 0.55}`;
+      line.style.top = `${6 + Math.random() * 88}%`;
+      line.style.left = `${-8 + Math.random() * 28}%`;
+      line.style.width = `${160 + rush * 260 + Math.random() * 140}px`;
+      line.style.opacity = `${0.28 + rush * 0.45}`;
+      line.style.animationDuration = `${Math.max(0.12, 0.32 - rush * 0.16)}s`;
       wrap.appendChild(line);
-      window.setTimeout(() => line.remove(), 280);
+      window.setTimeout(() => line.remove(), 360);
     }
   }
 
+  function updateSpeedStreaks(dt) {
+    if (reducedMotion || gameState !== 'PLAYING') return;
+    speedLineT -= dt;
+    const rush = rushAmount();
+    const interval = Math.max(0.045, 0.12 - rush * 0.07);
+    if (speedLineT > 0) return;
+    speedLineT = interval;
+    spawnSpeedStreaks(false);
+  }
+
   function addTrailParticle(x, y, z) {
-    if (Math.random() > 0.42) return;
+    const rush = rushAmount();
+    if (Math.random() > 0.28 + rush * 0.45) return;
     const p = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 6, 6),
+      new THREE.SphereGeometry(0.12 + rush * 0.08, 6, 6),
       new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.85 })
     );
-    p.position.set(x, y, z);
+    p.position.set(x - 0.6 - rush * 1.4, y, z + (Math.random() - 0.5) * (0.4 + rush));
     scene.add(p);
-    trailParticles.push({ mesh: p, life: 1 });
+    trailParticles.push({ mesh: p, life: 0.7 + rush * 0.5 });
   }
 
   /* =========================================================================
@@ -1008,10 +1068,9 @@
   }
 
   function updateSpace(dt) {
-    const wantSpace = bouncesCount >= 1 && (pos.y > 8.5 || pos.x > 80);
+    const wantSpace = pos.x >= LAYER_STRATO_END;
     if (wantSpace && !inSpace) {
       inSpace = true;
-      showJudge('space');
     }
     spaceBlend += ((inSpace ? 1 : 0) - spaceBlend) * Math.min(1, dt * 2.4);
     document.body.classList.toggle('is-space', spaceBlend > 0.08);
@@ -1114,7 +1173,6 @@
     pos = { x: 0, y: 3.2, z: 0 };
     vel = { x: 17.5, y: 13.5, z: 0 };
     speedMultiplier = 1;
-    applyFlowVelocity();
     bouncesCount = 0;
     combo = 0;
     maxCombo = 0;
@@ -1179,7 +1237,7 @@
     const lift = (quality === 'weak' ? 8.2 : 11.2) + liftBias * 5.5 + chargeAmt * 4.2;
     vel.y = Math.max(vel.y, 7.5) + lift * 0.55;
     vel.y = Math.min(vel.y, 22);
-    applyFlowVelocity();
+    vel.x = Math.max(vel.x, 15) * (1.04 + chargeAmt * 0.08 + (1 - Math.max(0, liftBias)) * 0.03);
     vel.z += steer * (7.2 + chargeAmt * 3);
     vel.z *= 0.92;
     vel.z = Math.max(-11, Math.min(11, vel.z));
@@ -1211,7 +1269,6 @@
     combo += 1;
     maxCombo = Math.max(maxCombo, combo);
     speedMultiplier *= 1.04;
-    applyFlowVelocity();
     sound.playBounce('graze', speedMultiplier, pos.z);
     hapticFor('graze');
     showJudge('graze');
@@ -1252,7 +1309,7 @@
     const analog = describeDistance(pos.x);
     setText('res-analog-main', analog.main);
     setText('res-analog-sub', analog.sub);
-    setText('res-speed', `x${(vel.x / FLOW_BASE).toFixed(2)}`);
+    setText('res-speed', `x${speedMultiplier.toFixed(2)}`);
     setText('res-combo', String(maxCombo));
     setText('res-hits', `${bouncesCount} / ${grazes}`);
     setText('res-marks', String(marksCount));
@@ -1262,7 +1319,7 @@
 
   function updateHUD() {
     setFlightDistance('hud-distance', 'hud-distance-unit', pos.x);
-    setText('hud-speed', (vel.x / FLOW_BASE).toFixed(2));
+    setText('hud-speed', speedMultiplier.toFixed(2));
     setText('hud-combo', String(combo));
     setFlightDistance('hud-best', 'hud-best-unit', bestDistance);
 
@@ -1384,7 +1441,6 @@
       } else {
         vel.z *= Math.pow(0.72, dt * 4);
       }
-      applyFlowVelocity();
       pos.x += vel.x * dt;
       pos.y += vel.y * dt;
       pos.z += vel.z * dt;
@@ -1425,6 +1481,7 @@
       }
 
       addTrailParticle(pos.x, pos.y, pos.z);
+      updateSpeedStreaks(dt);
       updateTelegraphs();
       updateMilestones();
       updateLayerState();

@@ -155,7 +155,13 @@ body.is-space #depth-screens {
   position: absolute;
   height: 2px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  animation: speed-streak 0.22s linear forwards;
+}
+
+@keyframes speed-streak {
+  from { transform: translateX(0); opacity: inherit; }
+  to { transform: translateX(78vw); opacity: 0; }
 }
 
 #ui-root {
@@ -834,7 +840,8 @@ body.is-danger #stats {
   }
   #depth-far,
   #depth-mid,
-  #depth-near {
+  #depth-near,
+  .speed-line {
     animation: none;
   }
 }
