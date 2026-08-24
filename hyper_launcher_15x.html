@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#07101c">
+  <title>HYPER LAUNCHER 15X</title>
+  <link rel="stylesheet" href="hyper_launcher.css">
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="depth-screens" aria-hidden="true">
+    <div id="depth-far" class="depth-layer"></div>
+    <div id="depth-mid" class="depth-layer"></div>
+    <div id="depth-near" class="depth-layer"></div>
+  </div>
+  <div id="speed-lines-container"></div>
+  <div id="impact-flash"></div>
+
+  <div id="ui-root">
+    <div id="hud-top">
+      <div class="hud-left">
+        <div id="stats" class="hud-panel">
+          <div class="stat stat-dist">
+            <div class="stat-label">DISTANCE</div>
+            <div class="stat-value"><span id="hud-distance">0.0</span><span class="stat-unit" id="hud-distance-unit">m</span></div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat stat-speed">
+            <div class="stat-label">SPEED</div>
+            <div class="stat-value">x<span id="hud-speed">1.00</span></div>
+          </div>
+          <div class="stat-divider combo-div"></div>
+          <div class="stat stat-combo">
+            <div class="stat-label">COMBO</div>
+            <div class="stat-value" id="hud-combo">0</div>
+          </div>
+        </div>
+        <div id="goal-chip" class="hud-panel">
+          <span id="hud-layer">対流圏</span>
+          <span id="hud-goal">次 25mプール</span>
+        </div>
+      </div>
+      <div class="hud-actions">
+        <button type="button" id="btn-tech" class="game-btn" aria-label="技術一覧">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+          <span class="btn-label">最新5</span>
+        </button>
+        <button type="button" id="btn-sound" class="game-btn" aria-label="ミュート切替">
+          <svg id="icon-sound-on" viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M18 6a8 8 0 010 12"/></svg>
+          <svg id="icon-sound-off" viewBox="0 0 24 24" hidden><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="center-stack">
+      <div id="judge"></div>
+      <div id="bounce-prompt">タップで打ち返す / 左右ボタンかスワイプで回避</div>
+    </div>
+
+    <div id="alt-tape" aria-hidden="true">
+      <div id="alt-needle"></div>
+    </div>
+
+    <div id="charge-wrap">
+      <div id="charge-label">CHARGE SMASH</div>
+      <div id="charge-bar"><div id="charge-fill"></div></div>
+    </div>
+
+    <div id="hud-bottom">
+      <div id="dodge-controls">
+        <button type="button" id="btn-dodge-left" class="dodge-btn" aria-label="左へ回避">
+          <small>回避</small>
+          <strong>←</strong>
+        </button>
+        <button type="button" id="btn-dodge-right" class="dodge-btn" aria-label="右へ回避">
+          <small>回避</small>
+          <strong>→</strong>
+        </button>
+      </div>
+      <div id="radar-wrap" class="hud-panel">
+        <div id="radar-label">RADAR</div>
+        <canvas id="radar" width="148" height="78"></canvas>
+      </div>
+      <div>
+        <div id="best-chip" class="hud-panel">BEST <strong id="hud-best">0.0</strong> <span id="hud-best-unit">m</span></div>
+        <div id="hint-chip" class="hud-panel">タップ=打つ 左右=回避</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-start" class="modal">
+    <div class="modal-card hud-panel" data-scrollable>
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24"><path d="M5 19l14-7L5 5v5l8 2-8 2v5z"/></svg>
+      </div>
+      <h1>HYPER LAUNCHER 15X</h1>
+      <p class="lead">
+        空中タップはバレーのレシーブ。次の目安を目指して打ち続ける。
+      </p>
+      <div class="rule-list">
+        <div class="rule-row"><span>落下・衝突</span><span class="bad">即終了</span></div>
+        <div class="rule-row"><span>頂点／落下直前</span><span class="good">PERFECT</span></div>
+        <div class="rule-row"><span>左右ボタン／スワイプ</span><span class="good">横回避</span></div>
+        <div class="rule-row"><span>長押し</span><span class="good">チャージ</span></div>
+        <div class="rule-row"><span>かすり</span><span class="good">GRAZE</span></div>
+        <div class="rule-row"><span>地面1回目</span><span class="good">DIGで復活</span></div>
+        <div class="rule-row"><span>目安を通過</span><span class="good">MARK</span></div>
+        <div class="rule-row"><span>連続ジャンプで宇宙</span><span class="good">岩石回避</span></div>
+      </div>
+      <button type="button" id="btn-launch" class="primary-btn">LAUNCH（発射）</button>
+    </div>
+  </div>
+
+  <div id="modal-gameover" class="modal hidden">
+    <div class="modal-card hud-panel" data-scrollable>
+      <div class="modal-icon danger">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      </div>
+      <div class="stat-label" id="gameover-cause">CRASHED</div>
+      <h2 style="margin:6px 0 0;font-size:1.6rem;">GAME OVER</h2>
+      <div class="result-card">
+        <div class="result-row"><span>飛翔距離</span><strong id="res-distance">0.0 m</strong></div>
+        <div class="result-row"><span>最高速度</span><strong id="res-speed">x1.00</strong></div>
+        <div class="result-row"><span>最大コンボ</span><strong id="res-combo">0</strong></div>
+        <div class="result-row"><span>打ち返し / かすり</span><strong id="res-hits">0 / 0</strong></div>
+        <div class="result-row"><span>通過した目安</span><strong id="res-marks">0</strong></div>
+      </div>
+      <div class="analog-box">
+        <div class="analog-kicker">その飛距離は</div>
+        <div id="res-analog-main">25mプール 0本</div>
+        <div id="res-analog-sub">目安を集計中</div>
+      </div>
+      <div id="new-record-badge">NEW BEST RECORD</div>
+      <button type="button" id="btn-retry" class="primary-btn">RETRY（もう一度）</button>
+    </div>
+  </div>
+
+  <div id="modal-tech" class="modal hidden">
+    <div class="modal-card hud-panel wide" data-scrollable>
+      <div class="modal-head">
+        <h3>ゲームを成立させる最新5</h3>
+        <button type="button" id="btn-close-tech" class="game-btn" aria-label="閉じる">
+          <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <ol class="tech-list" data-scrollable>
+        <li><strong>1. Live Milestone HUD</strong><br>プレイ中に次の実距離目安（プール、スカイツリー等）を常時表示し、通過でMARK</li>
+        <li><strong>2. Asymptotic Flow Speed</strong><br>速度は対数カーブ。x742でも打点のリズムが残る</li>
+        <li><strong>3. Fail-Forward Dig Save</strong><br>地面1回目はDIGで打ち返せる。2回目で墜落</li>
+        <li><strong>4. Altitude Biome Machine</strong><br>対流圏→成層圏→宇宙→軌道。層で星と岩石が変わる</li>
+        <li><strong>5. Predictive Apex Telegraph</strong><br>頂点到達をリングと「いま打つ」で予告。打点が見える</li>
+      </ol>
+      <button type="button" id="btn-close-tech-bottom" class="primary-btn">閉じる</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+  <script src="hyper_launcher.js"></script>
+</body>
+</html>
